@@ -162,6 +162,8 @@ Kết quả (26 trip): `trip-04622` (drive_a, train) bị loại nhiều nhất,
 Tác động không đều mà có một "vách đá" giữa 50 ms và 150 ms: gold tụt từ 1020 xuống 539 khung (mất 47%). Phân bố độ trễ giải thích điều này: trong 1246 khung, 646 khung lệch dưới 20 ms, **0 khung** nằm trong 20–50 ms, 586 khung nằm trong 50–150 ms, chỉ 12 khung lệch trên 150 ms (11 khung trên 500 ms, khớp với các khoảng mất tín hiệu 3 giây đã thấy ở Câu 3), và 2 khung không có telemetry nào trước nó. Tức là dữ liệu có hai cụm độ trễ, và 150 ms được đặt ngay trên cụm thứ hai nên giữ được gần hết. Nới lên 500 ms chỉ thêm 1 khung, còn 3500 ms thêm 12 khung nhưng đó chính là các khung có telemetry cũ tới vài giây (tốc độ, góc lái của vài giây trước), nên giá trị mặc định 150 là hợp lý: đổi vài khung lấy nhãn sai không có lợi.
 
 ### Câu hỏi Metabase thứ hai: tỷ lệ khung bị loại theo drive và split
+Thẻ này đã được thêm vào dashboard `Day 9: video data pipeline` (ảnh: `report/screenshots/metabase_dashboard_2.png`). Câu SQL chạy trên database `warehouse` (Postgres), nên cột tốc độ phải ép `::numeric` trước khi `round`:
+
 ```sql
 select drive_id, split, count(*) as so_trip, sum(frames) as khung,
        sum(frames - frames_kept) as khung_bi_loai,
