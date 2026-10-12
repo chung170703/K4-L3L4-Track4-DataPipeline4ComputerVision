@@ -11,8 +11,8 @@
 
 ## Kết quả cuối
 
-- `dataset_version` của bạn: `<điền>`  (phải khớp `report/evidence/run_summary.json`)
-- Số khung hình train / val / test của bạn: `<điền>`
+- `dataset_version` của bạn: `43aa8251b022`  (phải khớp `report/evidence/run_summary.json`)
+- Số khung hình train / val / test của bạn: `715 / 153 / 152`
 - `report/verify.txt`: tạo bằng `python3 scripts/check_submission.py --save-verify` (phải có `27/27 checks passed`).
 - Ảnh chụp trong `report/screenshots/`: `airflow_graph.png`, `minio_lake.png`, `metabase_dashboard.png`, và ảnh bài tập sập/chạy lại (log task đỏ thấy trip của bạn).
 
@@ -86,17 +86,23 @@ Khung hình **đen** và khung hình **tối** khác nhau thế nào, pipeline x
 ### Câu 6
 Dựa vào `leakage.json`: chia theo khung hình làm bao nhiêu trip bị chia cắt, so với chia theo trip? Vì sao điều này làm điểm kiểm thử đẹp một cách giả tạo?
 
-(trả lời ở đây)
+`leakage.json` (1020 khung đáng dùng, 26 trip): chia **theo khung hình** (ngẫu nhiên 70/15/15) làm **26/26 trip** bị chia cắt, và cả 26 trip đều có khung ở cả train lẫn test. Chia **theo trip** (gold của pipeline): **0 trip** bị chia cắt.
+
+Các khung liền nhau trong một trip gần như giống hệt (cùng cảnh, cùng ánh sáng, chỉ cách nhau 0,5 giây). Nếu một nửa nằm ở train và nửa kia ở test thì mô hình đã "thấy đề thi" lúc huấn luyện: nó chỉ cần nhớ cảnh chứ không cần khái quát hoá. Điểm trên test khi đó cao giả tạo, và khi gặp một chuyến xe mới ngoài thực tế thì kết quả tệ hơn nhiều. Chia theo trip buộc test là những cảnh mô hình chưa từng gặp.
 
 ### Câu 7
 Vì sao `dataset_version` là **băm nội dung** chứ không phải ngày giờ hay số đếm? Hai lần chạy liên tiếp cho kết quả gì? Vì sao `dataset_version` của bạn **khác** bạn bè dù cùng dữ liệu (liên hệ MSSV)?
 
-(trả lời ở đây)
+`dataset_version` của tôi là `43aa8251b022` (12 ký tự). Nó là băm của nội dung dataset, không phải ngày giờ hay số đếm, nên cùng nội dung thì cùng version và nội dung đổi thì version đổi. Thử trực tiếp: chạy `scripts/lab.sh step 4` rồi chạy lại `scripts/lab.sh cli export-dataset` cho cùng `dataset_version` `43aa8251b022` (`manifest_sha256` `378d4f54...`), dù hai lần chạy cách nhau vài phút và `created_at` khác nhau. Nếu dùng ngày giờ thì mỗi lần chạy lại sẽ ra version mới, và không thể dùng version để biết hai dataset có giống nhau không.
+
+MSSV được trộn vào cách xếp trip để chia train/val/test (manifest ghi `split: per trip, stratified by drive, md5 order`), nên mỗi MSSV cho một cách chia khác, tức nội dung dataset khác và băm khác. Tôi chưa thử đổi MSSV để quan sát; phần này dựa trên mô tả của README và manifest.
 
 ### Câu 8
 Đọc phần `lineage` trong `manifest.json` của dataset bạn. Trả lời "dataset này được tạo từ dữ liệu nào?" bằng chính nội dung đó. Nếu một người hỏi 3 tháng sau, thông tin nào giúp tái tạo lại đúng dataset này?
 
-(trả lời ở đây)
+Phần `lineage` trong `manifest.json` của dataset `43aa8251b022` ghi: dataset được tạo từ các bảng Delta ở những **phiên bản** sau: `bronze.raw_telemetry_a` v0, `bronze.raw_telemetry_b` v0, `bronze.trips_raw` v0, `bronze.video_files` v1, `silver.telemetry` v0, `silver.frames` v27, `silver.frames_flagged` v0, `silver.frame_telemetry` v0; và từ hai video có sha256 `636ba1a98dfc5ba665d1c935e1d2064e69f4df360ff9ffbd15795957d5e7e9aa` (drive_a), `bfa62703f645ff77a8578ae3fc74a00881140d38a404d43c8e2af265bbee9fdc` (drive_b), khớp với kết quả `shasum -a 256` trên file gốc.
+
+Manifest còn ghi `rules`: bỏ khung đen, mờ, gần trùng và mất đồng bộ (`is_black, is_blurry, is_near_dup, not sync_ok`), chia theo trip phân tầng theo drive; kèm 1020 khung (train 715, val 153, test 152). Ba tháng sau, để tái tạo đúng dataset này cần: sha256 của video đầu vào, phiên bản từng bảng (nhờ time travel của Delta mở lại đúng v27 của `silver.frames`), luật làm sạch và chia, và MSSV dùng cho cách chia; cuối cùng so `dataset_version` và `manifest_sha256` để chắc chắn trùng. Số `silver.frames` v27 cao hơn số trip (26) vì mỗi lần ghi partition là một commit, kể cả các lần chạy lại của thí nghiệm idempotent (đây là suy luận của tôi từ số commit, chưa kiểm tra bằng `history`).
 
 ## Bước 5 · Điều phối và phục vụ
 
