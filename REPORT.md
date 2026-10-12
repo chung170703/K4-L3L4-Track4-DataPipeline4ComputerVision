@@ -146,6 +146,33 @@ Kết quả (26 trip): `trip-04622` (drive_a, train) bị loại nhiều nhất,
 
 Điều này khớp với bước 3: drive_a có 149 khung `near_duplicate` (xe chạy chậm, camera đứng hình 6 giây) so với 52 ở drive_b, nên drive_a mất nhiều khung hơn. Tuy nhiên đây chỉ là suy luận từ số liệu theo drive; mart `mart_trip_summary` không tách lý do loại theo từng trip, nên tôi chưa khẳng định được nguyên nhân của riêng `trip-04622`. Một trip mất hơn nửa số khung cũng cho thấy khi dùng dataset này cần kiểm tra trip đó trước (ví dụ khung đen/mờ/trùng tập trung ở đâu).
 
+## Điểm cộng
+
+### Thí nghiệm riêng: độ nhạy của `sync_tol_ms`
+`sync_tol_ms` (mặc định 150) là độ trễ tối đa cho phép giữa một khung hình và dòng telemetry gần nhất trước nó (nối ASOF theo event time); quá ngưỡng thì khung bị gắn `sync_lost` và bị loại khỏi gold. Tôi chạy `dbt run --select silver_frame_telemetry gold_dataset_frames --vars '{sync_tol_ms: X}'` với 5 giá trị (không sửa file), rồi chạy lại với 150 để khôi phục: `verify` vẫn 27/27 và `dataset_version` vẫn `43aa8251b022`. Số liệu ở `report/evidence/bonus_sync_tol.json`.
+
+| `sync_tol_ms` | khung mất đồng bộ | khung trong gold | test / train / val |
+|---|---|---|---|
+| 20 | 600 | 539 | 79 / 369 / 91 |
+| 50 | 600 | 539 | 79 / 369 / 91 |
+| **150 (mặc định)** | 14 | 1020 | 152 / 715 / 153 |
+| 500 | 13 | 1021 | 152 / 715 / 154 |
+| 3500 | 2 | 1032 | 152 / 721 / 159 |
+
+Tác động không đều mà có một "vách đá" giữa 50 ms và 150 ms: gold tụt từ 1020 xuống 539 khung (mất 47%). Phân bố độ trễ giải thích điều này: trong 1246 khung, 646 khung lệch dưới 20 ms, **0 khung** nằm trong 20–50 ms, 586 khung nằm trong 50–150 ms, chỉ 12 khung lệch trên 150 ms (11 khung trên 500 ms, khớp với các khoảng mất tín hiệu 3 giây đã thấy ở Câu 3), và 2 khung không có telemetry nào trước nó. Tức là dữ liệu có hai cụm độ trễ, và 150 ms được đặt ngay trên cụm thứ hai nên giữ được gần hết. Nới lên 500 ms chỉ thêm 1 khung, còn 3500 ms thêm 12 khung nhưng đó chính là các khung có telemetry cũ tới vài giây (tốc độ, góc lái của vài giây trước), nên giá trị mặc định 150 là hợp lý: đổi vài khung lấy nhãn sai không có lợi.
+
+### Câu hỏi Metabase thứ hai: tỷ lệ khung bị loại theo drive và split
+```sql
+select drive_id, split, count(*) as so_trip, sum(frames) as khung,
+       sum(frames - frames_kept) as khung_bi_loai,
+       round(100.0 * sum(frames - frames_kept) / sum(frames), 1) as ty_le_loai_pct,
+       round(avg(avg_speed_kmh), 1) as toc_do_tb_kmh
+from marts.mart_trip_summary
+group by drive_id, split
+order by drive_id, ty_le_loai_pct desc
+```
+Kết quả: ở drive_a, tập **test** bị loại 32,7% số khung (33/101) và chạy rất chậm, trung bình chỉ 13,4 km/h; tập train bị loại 28,4% (tốc độ 37,3 km/h), val 18,8% (51,0 km/h). Ở drive_b, tỷ lệ loại thấp hơn hẳn (val 17,6%, train 8,4%, test 5,6%) và xe chạy nhanh hơn (56–72 km/h). Nhìn chung drive_a (xe chậm hơn) mất nhiều khung hơn drive_b, phù hợp với giải thích ở Câu 5 (xe chậm sinh nhiều khung gần trùng), nhưng quan hệ không đều từng split (drive_b test chạy 56,2 km/h mà chỉ mất 5,6%, thấp hơn val chạy 59,3 km/h với 17,6%), nên chỉ có thể nói là xu hướng. Điều đáng lo là tập test của drive_a vừa mất gần một phần ba số khung vừa lệch về tốc độ thấp, nên nó không đại diện cho điều kiện lái bình thường; khi đánh giá mô hình nên xem riêng từng drive thay vì chỉ một con số test gộp.
+
 ## Nhìn lại
 
 Điều bạn thấy bất ngờ nhất, điều gì còn chưa rõ, và một lỗi dữ liệu mà bạn nghĩ pipeline **chưa** bắt được (nếu có). Tối đa 8 dòng.
