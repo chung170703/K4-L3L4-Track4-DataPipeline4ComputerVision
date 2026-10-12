@@ -120,7 +120,19 @@ Nâng từ 2 drive lên **500 xe mỗi ngày**: ba thành phần nào của pipe
 
 Câu SQL bạn thêm vào dashboard và điều nó cho biết:
 
-(trả lời ở đây)
+Thẻ **"Tỷ lệ khung bị loại theo trip"** (trên database `warehouse`, đã thêm vào dashboard `Day 9: video data pipeline`):
+
+```sql
+select drive_id, trip_id, split, frames, frames_kept,
+       frames - frames_kept as khung_bi_loai,
+       round(100.0 * (frames - frames_kept) / frames, 1) as ty_le_loai_pct
+from marts.mart_trip_summary
+order by ty_le_loai_pct desc
+```
+
+Kết quả (26 trip): `trip-04622` (drive_a, train) bị loại nhiều nhất, 34/60 khung (56,7%); tiếp theo là `trip-03904` (50,0%, 11/22) và `trip-02086` (46,7%, 28/60). Sáu trip bị loại nhiều nhất đều thuộc drive_a; trip drive_b đầu tiên là `trip-04871`, đứng thứ bảy với 28,3%.
+
+Điều này khớp với bước 3: drive_a có 149 khung `near_duplicate` (xe chạy chậm, camera đứng hình 6 giây) so với 52 ở drive_b, nên drive_a mất nhiều khung hơn. Tuy nhiên đây chỉ là suy luận từ số liệu theo drive; mart `mart_trip_summary` không tách lý do loại theo từng trip, nên tôi chưa khẳng định được nguyên nhân của riêng `trip-04622`. Một trip mất hơn nửa số khung cũng cho thấy khi dùng dataset này cần kiểm tra trip đó trước (ví dụ khung đen/mờ/trùng tập trung ở đâu).
 
 ## Nhìn lại
 
