@@ -60,18 +60,26 @@ Vậy cổng chất lượng là lớp bảo vệ độc lập: kể cả khi b�
 ### Câu 4
 Dựa vào `idempotency.json`: số dòng trước và sau hai lần chạy lại, và khi ghi kiểu `append`. Vì sao Delta `overwrite` theo partition (một trip) an toàn hơn xoá rồi ghi lại, nhất là khi giữa chừng có lỗi?
 
-(trả lời ở đây)
+Tôi chạy lại partition `trip-00003` (60 khung) hai lần. Cách của pipeline (Delta `overwrite` theo predicate `trip_id`): trước 1246 dòng, sau hai lần chạy lại vẫn 1246 dòng, dấu vân tay `cb6118dbb0b8` không đổi (`unchanged: true`). Cách sai (`append`, chạy hai lần): `append_variant_rows_after_two_runs` = 120 dòng cho một trip chỉ có 60 khung, tức nhân đôi (2x), mỗi lần chạy lại lại thêm dữ liệu trùng.
+
+`overwrite` theo partition an toàn hơn xoá rồi ghi vì nó là **một commit nguyên tử** trong Delta log: người đọc thấy hoặc bảng cũ hoặc bảng mới, không có trạng thái nửa chừng. Nếu giữa chừng lỗi (như task sập ở bước 5), commit chưa được ghi nên bảng giữ nguyên dữ liệu cũ. Xoá rồi ghi là hai bước riêng: sập ở giữa thì trip đó biến mất khỏi bảng và người đọc thấy khoảng trống. Kết quả của overwrite chỉ phụ thuộc vào đầu vào, không phụ thuộc số lần chạy, nên chạy lại bao nhiêu lần cũng được.
 
 ### Câu 5
 Khung hình **đen** và khung hình **tối** khác nhau thế nào, pipeline xử lý khác nhau ra sao, bạn có đồng ý không? Dựa vào `threshold.json`: nếu chọn ngưỡng 0, 2, 6 thì bao nhiêu khung bị coi là trùng ở mỗi drive? Bạn chọn ngưỡng nào, vì sao, và ngưỡng đó phụ thuộc vào tốc độ xe thế nào?
 
 | dHash khác tối đa | số khung trùng, drive A | số khung trùng, drive B |
 |---|---|---|
-| 0 | | |
-| 2 | | |
-| 6 | | |
+| 0 | 60 (10,0%) | 8 (1,2%) |
+| 2 | 149 (24,8%) | 52 (8,1%) |
+| 6 | 363 (60,3%) | 244 (37,9%) |
 
-(trả lời ở đây)
+(tổng khung: A 602, B 644; trích từ `threshold.json`, các ngưỡng 1, 4, 8 cũng có trong file.)
+
+**Đen và tối:** khung đen gần như không có thông tin (mất tín hiệu camera): A có 6, B có 4, đều bị loại. Khung tối (đường hầm, bóng râm, thiếu sáng) vẫn còn nội dung nhìn thấy được, nên chỉ bị gắn cờ và **giữ lại**: A có 4, B có 61. Tôi đồng ý, vì xe thật có lái trong chỗ tối và mô hình cần thấy điều kiện đó, còn cờ cho phép lọc lại sau này nếu cần; khung đen thì không dạy được gì.
+
+**Chọn ngưỡng 2** (đang dùng). Ngưỡng 0 chỉ bắt khung giống hệt từng bit nên bỏ sót các khung gần như trùng, vốn khác vài bit do nén video và nhiễu (B chỉ 8 khung). Ngưỡng 6 loại 60,3% khung của A và 37,9% của B: nhiều khả năng đã loại cả khung khác nhau thật. Ngưỡng 2 loại 24,8% (A) và 8,1% (B), đủ bắt cảnh đứng yên mà vẫn giữ phần lớn dữ liệu.
+
+**Phụ thuộc tốc độ xe:** xe chạy chậm hoặc dừng thì hai khung cách nhau 0,5 giây gần như y hệt, nên có nhiều khung trùng; xe chạy nhanh thì cảnh đổi giữa hai khung nên ít trùng. Vì vậy cùng một ngưỡng loại nhiều hơn ở A (xe chậm, cộng camera đứng hình 6 giây) so với B. Ngưỡng cố định có thể loại hơi quá tay lúc chạy chậm và quá nhẹ lúc chạy nhanh; muốn chính xác hơn có thể điều chỉnh ngưỡng theo tốc độ.
 
 ## Bước 4 · Gold
 
