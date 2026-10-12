@@ -35,12 +35,25 @@ Bronze chỉ ghi nguyên bản và chỉ thêm, nên mỗi nguồn một bảng 
 ### Câu 2
 Pipeline đưa hai nguồn về một schema như thế nào (đơn vị, kiểu thời gian, **độ lệch đồng hồ**)? Bằng chứng nào trong kết quả bước 2 cho thấy đã đúng? Dán bảng quarantine của bạn (số dòng theo từng lý do, từng drive) và giải thích vì sao dòng lỗi vào `rejects` thay vì bị xoá.
 
-(trả lời ở đây)
+Các staging model (`stg_telemetry_a/b.sql`) đưa B về schema của A: tên cột đổi theo A; tốc độ `spd_kmh / 3.6` ra m/s; bàn đạp `throttle_pct / 100` ra tỉ lệ 0–1; thời gian `(timestamp_ms - telemetry_clock_offset_ms)` rồi đổi sang timestamp UTC, với độ lệch 1500 ms lấy từ `bronze_video_files`.
+
+Bằng chứng: thời điểm bắt đầu của B (`bat_dau`) là `2025-10-08 14:30:00.009`, khớp giờ bắt đầu video `14:30:00` (dòng thô đầu là `14:30:01.509`; `verify` xác nhận lệch dưới 0,5 s). Tốc độ tối đa sau chuẩn hoá là 71 km/h (A) và 100 km/h (B), hợp lý. Số dòng cân đối: 2968 + 53 = 3021 (A), 3181 + 53 = 3234 (B).
+
+| drive | duplicate | speed_missing | speed_out_of_range | tổng |
+|---|---|---|---|---|
+| drive_a | 20 | 30 | 3 | 53 |
+| drive_b | 20 | 30 | 3 | 53 |
+
+Dòng lỗi vào `silver.telemetry_rejects` (106 dòng) kèm `reject_reason` thay vì bị xoá, vì xoá thì không biết đã mất bao nhiêu, không đối soát được "sạch + loại = nhận vào", không điều tra được nguyên nhân (cảm biến hay nguồn), và nếu luật loại sai thì không còn dữ liệu để lấy lại. Cách ly giữ được dữ liệu sạch cho silver mà vẫn truy vết được.
 
 ### Câu 3
 Vì sao test `max_gap_ms` là `warn` còn `in_range` là `error`? Kết quả thí nghiệm `break-gate` của bạn (`break_gate.json`): test nào bắt được, bao nhiêu dòng, và điều đó cho biết gì về vai trò của "cổng chất lượng"?
 
-(trả lời ở đây)
+Trong `schema.yml`, `max_gap_ms` (khoảng trống dữ liệu quá 1000 ms) đặt `severity: warn`, còn `in_range` (tốc độ 0–70 m/s) mặc định là `error`. Mất tín hiệu cảm biến là sự kiện có thật ngoài đời, không làm các dòng còn lại sai: tôi đếm được mỗi drive có 1 khoảng trống (lớn nhất 3073 ms ở A và 3124 ms ở B), nên chỉ cần báo để con người biết. Tốc độ vô lý là dữ liệu hỏng, đi tiếp sẽ làm hỏng mọi thứ phía sau (join, tập huấn luyện), nên phải dừng pipeline.
+
+Thí nghiệm `break-gate` (`break_gate.json`): nới `max_speed_mps` từ 70 lên 1000 thì luật làm sạch không còn loại các dòng tốc độ vô lý, chúng lọt vào silver. `dbt test` chuyển từ `PASS=6 WARN=1 ERROR=0` sang `PASS=5 WARN=1 ERROR=1`: test `in_range_silver_telemetry_speed_mps__70__0` bắt được **6 dòng** (đúng 3 dòng A + 3 dòng B từng nằm trong quarantine). Khôi phục luật thì về lại `PASS=6 WARN=1 ERROR=0`.
+
+Vậy cổng chất lượng là lớp bảo vệ độc lập: kể cả khi bước làm sạch bị cấu hình sai, test vẫn chặn dữ liệu xấu trước khi các task phía sau chạy. Nó chỉ hiệu quả khi test kiểm tra ngưỡng riêng, không dùng cùng tham số với luật làm sạch.
 
 ## Bước 3 · Silver frames
 
