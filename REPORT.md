@@ -53,7 +53,7 @@ Vì sao test `max_gap_ms` là `warn` còn `in_range` là `error`? Kết quả th
 
 Trong `schema.yml`, `max_gap_ms` (khoảng trống dữ liệu quá 1000 ms) đặt `severity: warn`, còn `in_range` (tốc độ 0–70 m/s) mặc định là `error`. Mất tín hiệu cảm biến là sự kiện có thật ngoài đời, không làm các dòng còn lại sai: tôi đếm được mỗi drive có 1 khoảng trống (lớn nhất 3073 ms ở A và 3124 ms ở B), nên chỉ cần báo để con người biết. Tốc độ vô lý là dữ liệu hỏng, đi tiếp sẽ làm hỏng mọi thứ phía sau (join, tập huấn luyện), nên phải dừng pipeline.
 
-Thí nghiệm `break-gate` (`break_gate.json`): nới `max_speed_mps` từ 70 lên 1000 thì luật làm sạch không còn loại các dòng tốc độ vô lý, chúng lọt vào silver. `dbt test` chuyển từ `PASS=6 WARN=1 ERROR=0` sang `PASS=5 WARN=1 ERROR=1`: test `in_range_silver_telemetry_speed_mps__70__0` bắt được **6 dòng** (đúng 3 dòng A + 3 dòng B từng nằm trong quarantine). Khôi phục luật thì về lại `PASS=6 WARN=1 ERROR=0`.
+Thí nghiệm `break-gate` (`break_gate.json`): nới `max_speed_mps` từ 70 lên 1000 thì luật làm sạch không còn loại các dòng tốc độ vô lý, chúng lọt vào silver. `dbt test` chuyển từ `PASS=6 WARN=1 ERROR=0 SKIP=0` sang `PASS=5 WARN=1 ERROR=1 SKIP=0`: test `in_range_silver_telemetry_speed_mps__70__0` bắt được **6 dòng** (đúng 3 dòng A + 3 dòng B từng nằm trong quarantine). Khôi phục luật thì về lại `PASS=6 WARN=1 ERROR=0 SKIP=0`.
 
 Vậy cổng chất lượng là lớp bảo vệ độc lập: kể cả khi bước làm sạch bị cấu hình sai, test vẫn chặn dữ liệu xấu trước khi các task phía sau chạy. Nó chỉ hiệu quả khi test kiểm tra ngưỡng riêng, không dùng cùng tham số với luật làm sạch.
 
