@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Họ và tên | `<điền>` |
-| MSSV (đúng bằng `LAB_STUDENT_ID` trong `.env`) | `<điền>` |
+| MSSV (đúng bằng `LAB_STUDENT_ID` trong `.env`) | `2A202602985` |
 | GitHub | `<điền: tên tài khoản>` |
 | Trip dùng cho bài tập sập và chạy lại (xem GUIDE, bước 5) | `<điền: trip-xxxxx>` |
 
@@ -21,7 +21,14 @@
 ### Câu 1
 Liệt kê **ít nhất 4 khác biệt** giữa telemetry nguồn A và nguồn B mà bạn thấy ở bronze. Vì sao pipeline giữ **mỗi nguồn một bảng bronze** và để mọi cột ở dạng chữ, thay vì gộp và ép kiểu ngay?
 
-(trả lời ở đây)
+Năm khác biệt tôi thấy giữa `raw_telemetry_a` (3021 dòng) và `raw_telemetry_b` (3234 dòng):
+1. **Tên cột**: A dùng `ts_utc, speed_mps, heading_deg, lat/lon, alt_m, acc_x/acc_y, gas/brake, steer`; B dùng `timestamp_ms, spd_kmh, hdg, latitude/longitude, altitude, ax/ay, throttle_pct/brake_pct, steering`.
+2. **Đơn vị tốc độ**: A là m/s (dòng đầu 1.213), B là km/h (dòng đầu 55.11, khoảng 15,3 m/s).
+3. **Kiểu thời gian**: A là chuỗi ISO UTC (`2025-10-07T08:00:00.014Z`), B là epoch mili giây (`1759933801509`).
+4. **Thang bàn đạp**: A theo tỉ lệ 0–1 (`gas` 0.028), B theo phần trăm (`throttle_pct` 2.0).
+5. **Đồng hồ**: `telemetry_clock_offset_ms` của B là 1500, của A là 0 (xem `bronze_video_files`).
+
+Bronze chỉ ghi nguyên bản và chỉ thêm, nên mỗi nguồn một bảng và mọi cột để dạng chữ: không phải quyết định gộp hay ép kiểu khi chưa hiểu dữ liệu. Ép kiểu sớm thì ô trống hoặc giá trị lạ làm lần nạp lỗi hoặc bị đổi thầm lặng, và bản gốc mất. Giữ dạng chữ thì dòng nào cũng vào được, việc làm sạch để silver xử lý và khi luật đổi có thể chạy lại từ bronze. Chạy lại không nhân đôi: file được nhận diện bằng sha256 (không theo tên hay giờ), lần nạp thứ hai báo `already present`, và `history bronze.raw_telemetry_a` chỉ có một commit (`version 0`, `rows_added` 3021).
 
 ## Bước 2 · Silver telemetry
 
