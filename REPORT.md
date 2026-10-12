@@ -97,7 +97,14 @@ Vì sao `dataset_version` là **băm nội dung** chứ không phải ngày gi�
 
 `dataset_version` của tôi là `43aa8251b022` (12 ký tự). Nó là băm của nội dung dataset, không phải ngày giờ hay số đếm, nên cùng nội dung thì cùng version và nội dung đổi thì version đổi. Thử trực tiếp: chạy `scripts/lab.sh step 4` rồi chạy lại `scripts/lab.sh cli export-dataset` cho cùng `dataset_version` `43aa8251b022` (`manifest_sha256` `378d4f54...`), dù hai lần chạy cách nhau vài phút và `created_at` khác nhau. Nếu dùng ngày giờ thì mỗi lần chạy lại sẽ ra version mới, và không thể dùng version để biết hai dataset có giống nhau không.
 
-MSSV được trộn vào cách xếp trip để chia train/val/test (manifest ghi `split: per trip, stratified by drive, md5 order`), nên mỗi MSSV cho một cách chia khác, tức nội dung dataset khác và băm khác. Tôi chưa thử đổi MSSV để quan sát; phần này dựa trên mô tả của README và manifest.
+MSSV được trộn vào cách xếp trip để chia train/val/test (manifest ghi `split: per trip, stratified by drive, md5 order`), nên mỗi MSSV cho một cách chia khác, tức nội dung dataset khác và băm khác. Tôi đã thử trực tiếp: đổi tạm `LAB_STUDENT_ID` từ `2A202602985` sang `2A202602986` (chỉ khác chữ số cuối), chạy lại `step 4` với cùng dữ liệu. Kết quả (`report/evidence/mssv_version.json`):
+
+| MSSV | `dataset_version` | khung (test / train / val) | trip (test / train / val) |
+|---|---|---|---|
+| `2A202602985` (của tôi) | `43aa8251b022` | 152 / 715 / 153 | 4 / 18 / 4 |
+| `2A202602986` (thử) | `cd76f86ca4a3` | 168 / 711 / 141 | 4 / 18 / 4 |
+
+Tổng 1020 khung và số trip mỗi split không đổi (chia phân tầng theo drive), nhưng trip nào vào split nào đã đổi, nên số khung mỗi split và `dataset_version` khác. Chỉ đổi một chữ số của MSSV đã đủ làm đổi băm, đúng với việc version là băm nội dung. Sau đó tôi đặt lại MSSV của mình và chạy `step all --reset`: `dataset_version` về lại `43aa8251b022` và `verify` 27/27.
 
 ### Câu 8
 Đọc phần `lineage` trong `manifest.json` của dataset bạn. Trả lời "dataset này được tạo từ dữ liệu nào?" bằng chính nội dung đó. Nếu một người hỏi 3 tháng sau, thông tin nào giúp tái tạo lại đúng dataset này?
@@ -181,6 +188,6 @@ Kết quả: ở drive_a, tập **test** bị loại 32,7% số khung (33/101) v
 
 **Bất ngờ nhất:** thí nghiệm `break-gate`. Chỉ cần nới một con số (tốc độ tối đa từ 70 lên 1000 m/s) là 6 dòng vô lý lọt vào silver, và chính test `in_range` bắt được đúng 6 dòng đó; không có test thì lỗi đi thẳng xuống gold mà không ai biết. Một bất ngờ nữa là `trip-04622` bị loại tới 56,7% số khung.
 
-**Còn chưa rõ:** `mart_trip_summary` không tách lý do loại khung theo từng trip, nên tôi chỉ suy ra được nguyên nhân từ số liệu theo drive (drive_a nhiều khung trùng vì xe chạy chậm và camera đứng hình), chưa kiểm chứng cho riêng `trip-04622`. Tôi cũng chưa thử đổi MSSV để tận mắt thấy `dataset_version` đổi.
+**Còn chưa rõ:** `mart_trip_summary` không tách lý do loại khung theo từng trip, nên tôi chỉ suy ra được nguyên nhân từ số liệu theo drive (drive_a nhiều khung trùng vì xe chạy chậm và camera đứng hình), chưa kiểm chứng cho riêng `trip-04622`. Việc đổi MSSV làm `dataset_version` đổi thì tôi đã tự thử (Câu 7), nhưng chưa hiểu cụ thể hàm băm xếp trip dùng MSSV như thế nào bên trong.
 
 **Lỗi pipeline chưa bắt được:** tốc độ nằm trong khoảng 0–70 m/s nhưng nhảy vọt giữa hai mẫu liên tiếp (gia tốc phi thực tế) vẫn lọt qua `in_range`; tương tự, nếu độ lệch đồng hồ khai báo trong `sources.json` sai thì pipeline vẫn trừ theo con số đó mà không phát hiện. Ngoài ra, khi làm bài tập sập tôi lỡ chạy `day09_reset` trong lúc pipeline đang chạy: lake bị xoá giữa chừng và run hỏng vì lý do khác (`bronze.trips_raw does not exist`), không phải lỗi giả lập; pipeline chưa có cơ chế chặn chạy reset khi đang có run.

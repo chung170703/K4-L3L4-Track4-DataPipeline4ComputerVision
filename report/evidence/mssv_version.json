@@ -1,0 +1,21 @@
+{
+  "experiment": "mssv_changes_dataset_version",
+  "note": "Doi tam LAB_STUDENT_ID, chay lai step 4 voi cung du lieu, roi dat lai MSSV that va chay step all --reset.",
+  "runs": [
+    {
+      "student_id": "2A202602985",
+      "dataset_version": "43aa8251b022",
+      "frames": 1020,
+      "by_split": {"test": 152, "train": 715, "val": 153},
+      "trips_by_split": {"test": 4, "train": 18, "val": 4}
+    },
+    {
+      "student_id": "2A202602986",
+      "dataset_version": "cd76f86ca4a3",
+      "frames": 1020,
+      "by_split": {"test": 168, "train": 711, "val": 141},
+      "trips_by_split": {"test": 4, "train": 18, "val": 4}
+    }
+  ],
+  "restored": {"student_id": "2A202602985", "dataset_version": "43aa8251b022", "verify": "27/27"}
+}
