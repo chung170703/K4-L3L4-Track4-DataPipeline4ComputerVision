@@ -166,7 +166,7 @@ Tác động không đều mà có một "vách đá" giữa 50 ms và 150 ms: g
 select drive_id, split, count(*) as so_trip, sum(frames) as khung,
        sum(frames - frames_kept) as khung_bi_loai,
        round(100.0 * sum(frames - frames_kept) / sum(frames), 1) as ty_le_loai_pct,
-       round(avg(avg_speed_kmh), 1) as toc_do_tb_kmh
+       round(avg(avg_speed_kmh)::numeric, 1) as toc_do_tb_kmh
 from marts.mart_trip_summary
 group by drive_id, split
 order by drive_id, ty_le_loai_pct desc
