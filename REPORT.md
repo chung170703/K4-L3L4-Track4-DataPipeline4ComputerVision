@@ -150,4 +150,8 @@ Kết quả (26 trip): `trip-04622` (drive_a, train) bị loại nhiều nhất,
 
 Điều bạn thấy bất ngờ nhất, điều gì còn chưa rõ, và một lỗi dữ liệu mà bạn nghĩ pipeline **chưa** bắt được (nếu có). Tối đa 8 dòng.
 
-(trả lời ở đây)
+**Bất ngờ nhất:** thí nghiệm `break-gate`. Chỉ cần nới một con số (tốc độ tối đa từ 70 lên 1000 m/s) là 6 dòng vô lý lọt vào silver, và chính test `in_range` bắt được đúng 6 dòng đó; không có test thì lỗi đi thẳng xuống gold mà không ai biết. Một bất ngờ nữa là `trip-04622` bị loại tới 56,7% số khung.
+
+**Còn chưa rõ:** `mart_trip_summary` không tách lý do loại khung theo từng trip, nên tôi chỉ suy ra được nguyên nhân từ số liệu theo drive (drive_a nhiều khung trùng vì xe chạy chậm và camera đứng hình), chưa kiểm chứng cho riêng `trip-04622`. Tôi cũng chưa thử đổi MSSV để tận mắt thấy `dataset_version` đổi.
+
+**Lỗi pipeline chưa bắt được:** tốc độ nằm trong khoảng 0–70 m/s nhưng nhảy vọt giữa hai mẫu liên tiếp (gia tốc phi thực tế) vẫn lọt qua `in_range`; tương tự, nếu độ lệch đồng hồ khai báo trong `sources.json` sai thì pipeline vẫn trừ theo con số đó mà không phát hiện. Ngoài ra, khi làm bài tập sập tôi lỡ chạy `day09_reset` trong lúc pipeline đang chạy: lake bị xoá giữa chừng và run hỏng vì lý do khác (`bronze.trips_raw does not exist`), không phải lỗi giả lập; pipeline chưa có cơ chế chặn chạy reset khi đang có run.
