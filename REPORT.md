@@ -4,10 +4,12 @@
 
 | | |
 |---|---|
-| Họ và tên | `<điền>` |
+| Họ và tên | `Ngô Đức Chung` |
 | MSSV (đúng bằng `LAB_STUDENT_ID` trong `.env`) | `2A202602985` |
-| GitHub | `<điền: tên tài khoản>` |
-| Trip dùng cho bài tập sập và chạy lại (xem GUIDE, bước 5) | `<điền: trip-xxxxx>` |
+| GitHub | `chung170703` |
+| Trip dùng cho bài tập sập và chạy lại (xem GUIDE, bước 5) | `trip-04868` |
+
+> Cách tính trip: MSSV `2A202602985` có chữ `A` nên công thức của GUIDE (`int(MSSV) % 26`) không chạy được; tôi lấy phần số `202602985` rồi `% 26` làm chỉ số trong `list-trips`, ra `trip-04868`.
 
 ## Kết quả cuối
 
@@ -109,12 +111,22 @@ Manifest còn ghi `rules`: bỏ khung đen, mờ, gần trùng và mất đồng
 ### Câu 9
 Mô tả chính xác điều xảy ra khi trip của bạn sập rồi chạy lại: bao nhiêu task chuyển đỏ, bao nhiêu task `upstream_failed`, bạn clear gì, dữ liệu có nhân đôi không, `dataset_version` có đổi không? Bằng chứng (ảnh, số) là gì?
 
-(trả lời ở đây)
+Tôi đặt `LAB_FAIL_ONCE=trip-04868`, chạy `day09_reset` rồi `day09_video_pipeline` (run `2026-10-12 14:23:54 UTC`). Kết quả: **1 task đỏ**, là `silver_frames` với `map_index=13` (đúng trip của tôi; log ghi `RuntimeError: simulated crash while extracting trip-04868; run it again`), **25** task `silver_frames` còn lại xanh, và **7 task `upstream_failed`** (`dbt_run_silver`, `dbt_test_silver`, `dbt_run_gold`, `dbt_test_gold`, `publish_lake`, `export_dataset`, `publish_warehouse`); 3 task bronze và `trip_commands` vẫn xanh. Cổng chất lượng đã chặn đúng: dữ liệu thiếu một trip không được đưa tiếp sang gold.
+
+Tôi chỉ **clear task đỏ đó** (Clear task, không bật downstream). Chỉ `map_index=13` có `attempt=2`; 25 task kia chỉ có `attempt=1`, nên đúng **một** task được chạy lại, rồi 7 task phía sau tự chạy tiếp. Run chuyển xanh với 37/37 task `success`.
+
+Dữ liệu **không nhân đôi**: `silver.frames` vẫn 1246 dòng với 1246 `frame_id` khác nhau, trip-04868 có 60 dòng. Lý do là mỗi trip được ghi bằng Delta `overwrite` theo partition, nên chạy lại ra đúng kết quả như lần đầu (giống thí nghiệm idempotent ở Câu 4). `scripts/lab.sh verify` vẫn **27/27** và `dataset_version` vẫn `43aa8251b022`, không đổi. Bằng chứng: `report/screenshots/fail_task_log.png` (log task đỏ thấy trip-04868) và `report/screenshots/fail_graph_green.png` (Graph xanh sau khi clear).
 
 ### Câu 10
 Nâng từ 2 drive lên **500 xe mỗi ngày**: ba thành phần nào của pipeline này sẽ vỡ đầu tiên, và bạn thay bằng gì (nối với slide 12, 22, 23)?
 
-(trả lời ở đây)
+Số đo hiện tại: 2 drive (26 trip, 1246 khung hình) chạy hết DAG trong khoảng 1 phút, lake chiếm 79,1 MiB với 2346 object. Nếu 500 xe, mỗi xe tương đương một drive, thì khối lượng gấp khoảng 250 lần (ước lượng thô, giả định tuyến tính, và thực tế mỗi xe chạy lâu hơn nhiều so với đoạn cắt 5 phút này). Ba thành phần tôi cho là vỡ trước:
+
+1. **Giải mã video bằng FFmpeg trong các task chạy trên một container Airflow** (nút cổ chai đã nêu ở slide 24). `silver_frames` tạo một task cho mỗi trip; 500 xe sẽ ra hàng nghìn task chạy tranh nhau CPU của một máy, và scheduler cùng metadata DB của Airflow cũng phải gánh số task đó. Thay bằng worker phân tán (KubernetesExecutor hoặc Celery, hoặc Spark/Ray), giải mã bằng GPU/hardware, chia theo xe và theo ngày.
+2. **Delta trên một node MinIO, ghi `overwrite` theo từng trip.** Mỗi lần ghi là một commit nên bảng `silver.frames` sẽ có hàng chục nghìn commit và rất nhiều file nhỏ; nhiều worker ghi cùng lúc dễ xung đột commit, và 2346 object hiện tại sẽ thành hàng trăm nghìn mỗi ngày. Thay bằng object storage phân tán (S3/GCS), phân vùng theo ngày và xe, gộp file định kỳ (compaction), và giới hạn số writer trên một partition.
+3. **dbt + DuckDB chạy trong một tiến trình, rồi nạp vào Postgres cho Metabase.** DuckDB chạy một máy nên phép nối ASOF theo event time và các test chất lượng quét toàn bảng sẽ hết RAM và chậm; Postgres hàng dòng không hợp với truy vấn phân tích trên hàng trăm triệu dòng telemetry. Thay bằng engine phân tán hoặc kho cột (Spark/Trino, BigQuery, Snowflake), dùng mô hình dbt incremental theo ngày và chạy test trên phần dữ liệu mới thay vì toàn bộ.
+
+Ghi chú: đây là suy luận từ kiến trúc và số đo của bài lab, tôi chưa thử nghiệm ở quy mô lớn. Việc nối với slide 12, 22, 23 tôi chưa đối chiếu nội dung slide, bạn cần đọc lại slide để dẫn đúng.
 
 ## Câu hỏi riêng của bạn trên Metabase
 
